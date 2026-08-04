@@ -340,12 +340,11 @@ jobs:
             echo "::warning::ntsync_compat_6.6 补丁应用失败，可能已应用或上下文不匹配"
           fi
           echo "==> ntsync 补丁应用完成"
-
       - name: 🔧 Set gki_defconfig (设置编译配置)
         run: |
           cd kernel_workspace
           
-          # 解決部分內核在 Kconfig 中限制 USER_NS 的問題，移除 config USER_NS 區塊內的所有 depends on 限制
+          # 解決部分內核在 Kconfig 中限制 USER_NS 的問題，移除 config USER_NS 區塊內的所有滲透限制
           if [ -f "./common/init/Kconfig" ]; then
             echo "==> 正在解除 init/Kconfig 中對 USER_NS 的任何依賴限制..."
             sed -i '/config USER_NS/,/config / { /depends on/d }' ./common/init/Kconfig
@@ -391,23 +390,19 @@ jobs:
             fi
           }
 
-          # ==================== 续航提升与功耗优化配置 ====================
+          # ==================== 安全版 续航与性能优化配置 ====================
           if [ "${{ env.ENABLE_POWER_SAVING }}" = "true" ]; then
-            echo "==> 开始配置 续航提升与功耗优化 选项..."
+            echo "==> 开始配置 安全版 续航与性能优化 选项..."
 
-            # 1. 禁用无用调试与追踪项（降低 CPU 常驻开销与内存追踪负载）
-            disable_config CONFIG_DEBUG_KERNEL
-            disable_config CONFIG_SLUB_DEBUG
-            disable_config CONFIG_SLUB_DEBUG_ON
-            disable_config CONFIG_SCHED_DEBUG
-            disable_config CONFIG_TRACING
-            disable_config CONFIG_TRACING_MAP
-
-            # 2. 开启 ThinLTO (链接时间优化，缩小内核体积并提高 I-Cache 命中率)
+            # 1. 开启 ThinLTO (不改变结构体大小，大幅提升指令执行效率与 I-Cache 命中率)
             disable_config CONFIG_LTO_NONE
             enable_config CONFIG_LTO_CLANG_THIN
 
-            echo "==> 续航提升与功耗优化 配置完成"
+            # 2. 开启性能与体积代码优化
+            enable_config CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE
+
+            # 注意：不再修改 CONFIG_SLUB_DEBUG 和 CONFIG_SCHED_DEBUG，防止 KMI 模块崩溃
+            echo "==> 安全版 续航与性能优化 配置完成"
           fi
 
           # ==================== Droidspaces 内核配置 ====================
@@ -455,6 +450,7 @@ jobs:
           echo "CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE=y" >> "$DEFCONFIG"
           
           sudo sed -i 's/check_defconfig//' ./common/build.config.gki
+
 
       - name: 🔧 Set Kernel name (写入内核名称)
         run: |
